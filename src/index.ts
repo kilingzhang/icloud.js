@@ -68,6 +68,14 @@ export interface iCloudServiceSetupOptions {
      * @default LogLevel.Debug
      */
     logger?: keyof typeof LogLevel | ((level: (typeof LogLevel)[keyof typeof LogLevel], ...args: any[]) => void);
+
+    clientId?: string;
+    clientBuildNumber?: string;
+    clientMasteringNumber?: string;
+    clientLanguage?: string;
+    clientVersion?: string;
+    tz?: string;
+    requestID?: string;
 }
 
 /**
@@ -201,6 +209,13 @@ export default class iCloudService extends EventEmitter {
         this.options = options;
         if (!this.options.dataDirectory) this.options.dataDirectory = path.join(os.homedir(), ".icloud");
         this.authStore = new iCloudAuthenticationStore(this);
+        this.options.clientId = this.options.clientId || "01a7ba7c-219c-4c46-ba67-ecd51e1acdab";
+        this.options.clientBuildNumber = this.options.clientBuildNumber || "2420Hotfix10";
+        this.options.clientMasteringNumber = this.options.clientMasteringNumber || "2420Hotfix10";
+        this.options.clientLanguage = this.options.clientLanguage || "en-US";
+        this.options.clientVersion = this.options.clientVersion || "5.1";
+        this.options.tz = this.options.tz || "UTC";
+        this.options.requestID = this.options.requestID || "1";
     }
 
     log(level: number, ...args: any[]) {
@@ -334,7 +349,7 @@ export default class iCloudService extends EventEmitter {
 
                     throw new Error("Invalid status code: " + authResponse.status + ", " + await authResponse.text());
                 }
-            }else {
+            } else {
                 console.log(authData)
                 this.authStore.loadAuthSecrets(authData);
                 this._setState(iCloudServiceStatus.Trusted);
