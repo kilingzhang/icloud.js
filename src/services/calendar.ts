@@ -280,6 +280,33 @@ export class iCloudCalendarService {
             data
         );
     }
+
+
+    async deleteCollection(collection: iCloudCalendarCollection) {
+        const startDate = dayjs().format("YYYY-MM-DD");
+        const endDate = startDate;
+        const data = {}
+        const params = {
+            clientBuildNumber: this.service.options.clientBuildNumber,
+            clientId: this.service.options.clientId,
+            clientMasteringNumber: this.service.options.clientMasteringNumber,
+            lang: this.service.options.clientLanguage,
+            clientVersion: this.service.options.clientVersion,
+            usertz: this.service.options.tz ?? this.tz,
+            requestID: this.service.options.requestID,
+            methodOverride: "DELETE",
+            ifMatch: collection.etag ? encodeURIComponent(collection.etag) : null,
+            dsid: this.dsid,
+            startDate,
+            endDate
+        };
+        return await this.fetchEndpoint<any>(
+            "POST",
+            `/collections/${collection.guid}`,
+            params,
+            data
+        );
+    }
 }
 
 export type {

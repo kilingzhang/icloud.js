@@ -1,5 +1,4 @@
 const authenticate = require("./authenticate");
-const {iCloudCalendarCollection} = require("../build/services/calendar");
 
 authenticate.then(async (icloud) => {
     const calendarService = icloud.getService("calendar");
@@ -22,5 +21,10 @@ authenticate.then(async (icloud) => {
     const newCalendar = await calendarService.createCollection({
         title: "New Calendar",
     });
+    // New calendar created: {"guid":"EFC863D8-EB5D-7785-3CE3-3D3ADF8D7F0C","ctag":"HwoQEgwAAAAAAAAAAAAAAAAYARgAIhUImpjBsc7k4OtdEM6QnvjQyfffiQEoAA==","ChangeSet":{"fullState":false,"UpcomingAlarm":[]}}
     console.log(`New calendar created: ${JSON.stringify(newCalendar)}`);
+
+    // Calendar deleted: {}
+    const deleteCalendar = await calendarService.deleteCollection(newCalendar);
+    console.log(`Calendar deleted: ${JSON.stringify(deleteCalendar)}`);
 });
