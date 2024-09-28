@@ -120,7 +120,7 @@ export class iCloudDriveService {
     constructor(service: iCloudService, serviceUri: string) {
         this.service = service;
         this.serviceUri = serviceUri;
-        this.docsServiceUri = service.accountInfo.webservices.docws.url;
+        this.docsServiceUri = service.accountInfo?.webservices?.docws?.url;
     }
     async getNode(nodeId: {drivewsid: string} | string = "FOLDER::com.apple.CloudDocs::root") {
         return new iCloudDriveNode(this,
@@ -138,7 +138,7 @@ export class iCloudDriveService {
         const response = await fetch(this.docsServiceUri + `/ws/${item.zone || "com.apple.CloudDocs"}/download/by_id?document_id=` + encodeURIComponent(item.docwsid), { headers: this.service.authStore.getHeaders() });
         const json = await response.json();
         if (json.error_code) throw new Error(json.reason);
-        const url = json.data_token ? json.data_token.url : json.package_token.url;
+        const url = json.data_token ? json.data_token?.url : json.package_token?.url;
         const fileResponse = await fetch(url, { headers: this.service.authStore.getHeaders() });
         return fileResponse.body;
     }

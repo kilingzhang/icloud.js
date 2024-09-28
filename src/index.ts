@@ -3,19 +3,19 @@ import fs from "fs";
 import fetch from "node-fetch";
 import os from "os";
 import path from "path";
-import { iCloudAuthenticationStore } from "./auth/authStore";
-import { GSASRPAuthenticator } from "./auth/iCSRPAuthenticator.js";
-import { AUTH_ENDPOINT, AUTH_HEADERS, DEFAULT_HEADERS, SETUP_ENDPOINT } from "./consts";
-import { iCloudAccountDetailsService } from "./services/account";
-import { iCloudCalendarService } from "./services/calendar";
-import { iCloudDriveService } from "./services/drive";
-import { iCloudFindMyService } from "./services/findMy";
-import { iCloudPhotosService } from "./services/photos";
-import { iCloudUbiquityService } from "./services/ubiquity";
-import { AccountInfo } from "./types";
+import {iCloudAuthenticationStore} from "./auth/authStore";
+import {GSASRPAuthenticator} from "./auth/iCSRPAuthenticator.js";
+import {AUTH_ENDPOINT, AUTH_HEADERS, DEFAULT_HEADERS, SETUP_ENDPOINT} from "./consts";
+import {iCloudAccountDetailsService} from "./services/account";
+import {iCloudCalendarService} from "./services/calendar";
+import {iCloudDriveService} from "./services/drive";
+import {iCloudFindMyService} from "./services/findMy";
+import {iCloudPhotosService} from "./services/photos";
+import {iCloudUbiquityService} from "./services/ubiquity";
+import {AccountInfo} from "./types";
 
-export type { iCloudAuthenticationStore } from "./auth/authStore";
-export type { AccountInfo } from "./types";
+export type {iCloudAuthenticationStore} from "./auth/authStore";
+export type {AccountInfo} from "./types";
 export const LogLevel = {
     Debug: 0,
     Info: 1,
@@ -69,6 +69,7 @@ export interface iCloudServiceSetupOptions {
      */
     logger?: keyof typeof LogLevel | ((level: (typeof LogLevel)[keyof typeof LogLevel], ...args: any[]) => void);
 }
+
 /**
  * The state of the iCloudService.
  */
@@ -95,39 +96,39 @@ export const enum iCloudServiceStatus {
  */
 export interface iCloudStorageUsage {
     storageUsageByMedia: Array<{
-      mediaKey: string
-      displayLabel: string
-      displayColor: string
-      usageInBytes: number
+        mediaKey: string
+        displayLabel: string
+        displayColor: string
+        usageInBytes: number
     }>
     storageUsageInfo: {
-      compStorageInBytes: number
-      usedStorageInBytes: number
-      totalStorageInBytes: number
-      commerceStorageInBytes: number
+        compStorageInBytes: number
+        usedStorageInBytes: number
+        totalStorageInBytes: number
+        commerceStorageInBytes: number
     }
     quotaStatus: {
-      overQuota: boolean
-      haveMaxQuotaTier: boolean
-      "almost-full": boolean
-      paidQuota: boolean
+        overQuota: boolean
+        haveMaxQuotaTier: boolean
+        "almost-full": boolean
+        paidQuota: boolean
     }
     familyStorageUsageInfo: {
-      mediaKey: string
-      displayLabel: string
-      displayColor: string
-      usageInBytes: number
-      familyMembers: Array<{
-        lastName: string
-        dsid: number
-        fullName: string
-        firstName: string
+        mediaKey: string
+        displayLabel: string
+        displayColor: string
         usageInBytes: number
-        id: string
-        appleId: string
-      }>
+        familyMembers: Array<{
+            lastName: string
+            dsid: number
+            fullName: string
+            firstName: string
+            usageInBytes: number
+            id: string
+            appleId: string
+        }>
     }
-  }
+}
 
 function sleep(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -137,21 +138,21 @@ function sleep(ms: number) {
  * The main iCloud service class
  * It serves as a central manager for logging in and exposes all other services.
  * @example ```ts
-const icloud = new iCloud({
-    username: "johnny.appleseed@icloud.com",
-    password: "hunter2",
-    saveCredentials: true,
-    trustDevice: true
-});
-await icloud.authenticate();
-console.log(icloud.status);
-if (icloud.status === "MfaRequested") {
-    await icloud.provideMfaCode("123456");
-}
-await icloud.awaitReady;
-console.log(icloud.status);
-console.log("Hello, " + icloud.accountInfo.dsInfo.fullName);
-```
+ const icloud = new iCloud({
+ username: "johnny.appleseed@icloud.com",
+ password: "hunter2",
+ saveCredentials: true,
+ trustDevice: true
+ });
+ await icloud.authenticate();
+ console.log(icloud.status);
+ if (icloud.status === "MfaRequested") {
+ await icloud.provideMfaCode("123456");
+ }
+ await icloud.awaitReady;
+ console.log(icloud.status);
+ console.log("Hello, " + icloud.accountInfo.dsInfo.fullName);
+ ```
  */
 export default class iCloudService extends EventEmitter {
     /**
@@ -201,7 +202,8 @@ export default class iCloudService extends EventEmitter {
         if (!this.options.dataDirectory) this.options.dataDirectory = path.join(os.homedir(), ".icloud");
         this.authStore = new iCloudAuthenticationStore(this);
     }
-    private log(level: number, ...args: any[]) {
+
+    log(level: number, ...args: any[]) {
         if (typeof this.options.logger === "function") {
             this.options.logger(level, ...args);
         } else {
@@ -229,6 +231,25 @@ export default class iCloudService extends EventEmitter {
      * @param password The password to use instead of the one provided in this iCloudService's options
      */
     async authenticate(username?: string, password?: string) {
+
+        if (!fs.existsSync(this.options.dataDirectory)) fs.mkdirSync(this.options.dataDirectory);
+
+        // Save variables to file
+        let authData = {
+            username: "",
+            password: "",
+            sessionId: "",
+            sessionToken: "",
+            scnt: "",
+            aasp: ""
+        };
+        const authDataPath = path.join(this.options.dataDirectory, 'authData.json');
+        if (fs.existsSync(authDataPath)) {
+            authData = JSON.parse(fs.readFileSync(authDataPath, 'utf-8'));
+            this.options.username = authData?.username;
+            this.options.password = authData?.password;
+        }
+
         username = username || this.options.username;
         password = password || this.options.password;
 
@@ -261,53 +282,66 @@ export default class iCloudService extends EventEmitter {
         if (!password) throw new Error("Password is required");
 
 
-        if (!fs.existsSync(this.options.dataDirectory)) fs.mkdirSync(this.options.dataDirectory);
         this.authStore.loadTrustToken(this.options.username);
-
 
 
         this._setState(iCloudServiceStatus.Started);
         try {
-            let authEndpoint = "signin";
-            let authData = {
-                accountName: this.options.username,
-                trustTokens: this.authStore.trustToken ? [this.authStore.trustToken] : [],
-                rememberMe: this.options.saveCredentials
-            } as any;
-            if (this.options.authMethod === "srp") {
-                const authenticator = new GSASRPAuthenticator(username);
-                const initData = await authenticator.getInit();
-                const initResponse = await fetch(AUTH_ENDPOINT + "signin/init", {
-                    headers: AUTH_HEADERS, method: "POST", body: JSON.stringify(initData)
-                }).then((r) => r.json());
-                authData = {
-                    ...authData,
-                    ...(await authenticator.getComplete(password, initResponse))
-                };
-                authEndpoint = "signin/complete";
-            } else {
-                authData.password = this.options.password;
-            }
 
-            const authResponse = await fetch(AUTH_ENDPOINT + authEndpoint + "?isRememberMeEnabled=true", { headers: AUTH_HEADERS, method: "POST", body: JSON.stringify(authData) });
-            if (authResponse.status == 200) {
-                if (this.authStore.processAuthSecrets(authResponse)) {
-                    this._setState(iCloudServiceStatus.Trusted);
-                    this._getiCloudCookies();
+            if (!authData?.sessionId || !authData?.sessionToken || !authData?.scnt || !authData?.aasp) {
+                let authEndpoint = "signin";
+                let authData = {
+                    accountName: this.options.username,
+                    trustTokens: this.authStore.trustToken ? [this.authStore.trustToken] : [],
+                    rememberMe: this.options.saveCredentials
+                } as any;
+                if (this.options.authMethod === "srp") {
+                    const authenticator = new GSASRPAuthenticator(username);
+                    const initData = await authenticator.getInit();
+                    const initResponse = await fetch(AUTH_ENDPOINT + "signin/init", {
+                        headers: AUTH_HEADERS, method: "POST", body: JSON.stringify(initData)
+                    }).then((r) => r.json());
+                    authData = {
+                        ...authData,
+                        ...(await authenticator.getComplete(password, initResponse))
+                    };
+                    authEndpoint = "signin/complete";
                 } else {
-                    throw new Error("Unable to process auth response!");
+                    authData.password = this.options.password;
                 }
-            } else if (authResponse.status == 409) {
-                if (this.authStore.processAuthSecrets(authResponse))
-                    this._setState(iCloudServiceStatus.MfaRequested);
-                else
-                    throw new Error("Unable to process auth response!");
-            } else {
-                if (authResponse.status == 401)
-                    throw new Error("Recieved 401 error. Incorrect password? (" + authResponse.status + ", " + await authResponse.text() + ")");
 
-                throw new Error("Invalid status code: " + authResponse.status + ", " + await authResponse.text());
+                const authResponse = await fetch(AUTH_ENDPOINT + authEndpoint + "?isRememberMeEnabled=true", {
+                    headers: AUTH_HEADERS,
+                    method: "POST",
+                    body: JSON.stringify(authData)
+                });
+
+                if (authResponse.status == 200) {
+                    if (this.authStore.processAuthSecrets(authResponse)) {
+                        this._setState(iCloudServiceStatus.Trusted);
+                        this._getiCloudCookies();
+                    } else {
+                        throw new Error("Unable to process auth response!");
+                    }
+                } else if (authResponse.status == 409) {
+                    if (this.authStore.processAuthSecrets(authResponse))
+                        this._setState(iCloudServiceStatus.MfaRequested);
+                    else
+                        throw new Error("Unable to process auth response!");
+                } else {
+                    if (authResponse.status == 401)
+                        throw new Error("Recieved 401 error. Incorrect password? (" + authResponse.status + ", " + await authResponse.text() + ")");
+
+                    throw new Error("Invalid status code: " + authResponse.status + ", " + await authResponse.text());
+                }
+            }else {
+                console.log(authData)
+                this.authStore.loadAuthSecrets(authData);
+                this._setState(iCloudServiceStatus.Trusted);
+                this._getiCloudCookies();
             }
+
+
         } catch (e) {
             this._setState(iCloudServiceStatus.Error, e);
             throw e;
@@ -326,10 +360,10 @@ export default class iCloudService extends EventEmitter {
         if (!this.authStore.validateAuthSecrets())
             throw new Error("Cannot provide MFA code without calling authenticate first!");
 
-        const authData = { securityCode: { code } };
+        const authData = {securityCode: {code}};
         const authResponse = await fetch(
             AUTH_ENDPOINT + "verify/trusteddevice/securitycode",
-            { headers: this.authStore.getMfaHeaders(), method: "POST", body: JSON.stringify(authData) }
+            {headers: this.authStore.getMfaHeaders(), method: "POST", body: JSON.stringify(authData)}
         );
         if (authResponse.status == 204) {
             this._setState(iCloudServiceStatus.Authenticated);
@@ -347,7 +381,7 @@ export default class iCloudService extends EventEmitter {
         this.log(LogLevel.Warning, "Trusting device");
         const authResponse = await fetch(
             AUTH_ENDPOINT + "2sv/trust",
-            { headers: this.authStore.getMfaHeaders() }
+            {headers: this.authStore.getMfaHeaders()}
         );
         if (this.authStore.processAccountTokens(this.options.username, authResponse))
             this._setState(iCloudServiceStatus.Trusted);
@@ -362,7 +396,11 @@ export default class iCloudService extends EventEmitter {
                 dsWebAuthToken: this.authStore.sessionToken,
                 trustToken: this.authStore.trustToken
             };
-            const response = await fetch(SETUP_ENDPOINT, { headers: DEFAULT_HEADERS, method: "POST", body: JSON.stringify(data) });
+            const response = await fetch(SETUP_ENDPOINT, {
+                headers: DEFAULT_HEADERS,
+                method: "POST",
+                body: JSON.stringify(data)
+            });
             if (response.status == 200) {
                 if (this.authStore.processCloudSetupResponse(response)) {
                     try {
@@ -401,7 +439,10 @@ export default class iCloudService extends EventEmitter {
      * Updates the PCS state (iCloudService.pcsEnabled, iCloudService.pcsAccess, iCloudService.ICDRSDisabled).
      */
     async checkPCS() {
-        const pcsTest = await fetch("https://setup.icloud.com/setup/ws/1/requestWebAccessState", { headers: this.authStore.getHeaders(), method: "POST" });
+        const pcsTest = await fetch("https://setup.icloud.com/setup/ws/1/requestWebAccessState", {
+            headers: this.authStore.getHeaders(),
+            method: "POST"
+        });
         if (pcsTest.status == 200) {
             const j = await pcsTest.json();
             this.pcsEnabled = typeof j.isDeviceConsentedForPCS == "boolean";
@@ -425,7 +466,10 @@ export default class iCloudService extends EventEmitter {
             return true;
         }
         if (!this.pcsAccess) {
-            const requestPcs = await fetch("https://setup.icloud.com/setup/ws/1/enableDeviceConsentForPCS", { headers: this.authStore.getHeaders(), method: "POST" });
+            const requestPcs = await fetch("https://setup.icloud.com/setup/ws/1/enableDeviceConsentForPCS", {
+                headers: this.authStore.getHeaders(),
+                method: "POST"
+            });
             const requestPcsJson = await requestPcs.json();
             if (!requestPcsJson.isDeviceConsentNotificationSent)
                 throw new Error("Unable to request PCS access!");
@@ -434,21 +478,29 @@ export default class iCloudService extends EventEmitter {
             await sleep(5000);
             await this.checkPCS();
         }
-        let pcsRequest = await fetch("https://setup.icloud.com/setup/ws/1/requestPCS", { headers: this.authStore.getHeaders(), method: "POST", body: JSON.stringify({ appName, derivedFromUserAction: true }) });
+        let pcsRequest = await fetch("https://setup.icloud.com/setup/ws/1/requestPCS", {
+            headers: this.authStore.getHeaders(),
+            method: "POST",
+            body: JSON.stringify({appName, derivedFromUserAction: true})
+        });
         let pcsJson = await pcsRequest.json();
         while (true) {
             if (pcsJson.status == "success") {
                 break;
             } else {
                 switch (pcsJson.message) {
-                case "Requested the device to upload cookies.":
-                case "Cookies not available yet on server.":
-                    await sleep(5000);
-                    break;
-                default:
-                    this.log(LogLevel.Error, "unknown PCS request state", pcsJson);
+                    case "Requested the device to upload cookies.":
+                    case "Cookies not available yet on server.":
+                        await sleep(5000);
+                        break;
+                    default:
+                        this.log(LogLevel.Error, "unknown PCS request state", pcsJson);
                 }
-                pcsRequest = await fetch("https://setup.icloud.com/setup/ws/1/requestPCS", { headers: this.authStore.getHeaders(), method: "POST", body: JSON.stringify({ appName, derivedFromUserAction: false }) });
+                pcsRequest = await fetch("https://setup.icloud.com/setup/ws/1/requestPCS", {
+                    headers: this.authStore.getHeaders(),
+                    method: "POST",
+                    body: JSON.stringify({appName, derivedFromUserAction: false})
+                });
                 pcsJson = await pcsRequest.json();
             }
         }
@@ -458,19 +510,14 @@ export default class iCloudService extends EventEmitter {
     }
 
 
-
-
-
-
-
-    private _serviceCache: {[key: string]: any} = {};
+    private _serviceCache: { [key: string]: any } = {};
     /**
      * A mapping of service names to their classes.
      * This is used by {@link iCloudService.getService} to return the correct service class.
      * @remarks You should **not** use this to instantiate services, use {@link iCloudService.getService} instead.
      * @see {@link iCloudService.getService}
      */
-    serviceConstructors: {[key: string]: any} = {
+    serviceConstructors: { [key: string]: any } = {
         account: iCloudAccountDetailsService,
         findme: iCloudFindMyService,
         ubiquity: iCloudUbiquityService,
@@ -499,19 +546,20 @@ export default class iCloudService extends EventEmitter {
      * @param service The service name to return an instance of. Must be one of the keys in {@link iCloudService.serviceConstructors}.
      * @returns {iCloudService}
      */
-    getService(service:string) {
+    getService(service: string) {
         if (!this.serviceConstructors[service]) throw new TypeError(`getService(service: string): 'service' was ${service.toString()}, must be one of ${Object.keys(this.serviceConstructors).join(", ")}`);
         if (service === "photos")
-            this._serviceCache[service] = new this.serviceConstructors[service](this, this.accountInfo.webservices.ckdatabasews.url);
+            this._serviceCache[service] = new this.serviceConstructors[service](this, this.accountInfo.webservices.ckdatabasews?.url);
 
         if (!this._serviceCache[service])
-            this._serviceCache[service] = new this.serviceConstructors[service](this, this.accountInfo.webservices[service].url);
+            this._serviceCache[service] = new this.serviceConstructors[service](this, this.accountInfo?.webservices[service]?.url);
 
         return this._serviceCache[service];
     }
 
 
     private _storage;
+
     /**
      * Gets the storage usage data for the account.
      * @param refresh Force a refresh of the storage usage data.
@@ -519,7 +567,7 @@ export default class iCloudService extends EventEmitter {
      */
     async getStorageUsage(refresh = false): Promise<iCloudStorageUsage> {
         if (!refresh && this._storage) return this._storage;
-        const response = await fetch("https://setup.icloud.com/setup/ws/1/storageUsageInfo", { headers: this.authStore.getHeaders() });
+        const response = await fetch("https://setup.icloud.com/setup/ws/1/storageUsageInfo", {headers: this.authStore.getHeaders()});
         const json = await response.json();
         this._storage = json;
         return this._storage;

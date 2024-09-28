@@ -804,7 +804,7 @@ class iCloudPhotoAsset {
             return null;
 
 
-        const response = await fetch(this.versions[version].url);
+        const response = await fetch(this.versions[version]?.url);
 
         return response.arrayBuffer();
     }

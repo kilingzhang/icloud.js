@@ -1,10 +1,10 @@
 import fs from "fs";
-import { Response } from "node-fetch";
+import {Response} from "node-fetch";
 import path from "path";
-import { Cookie } from "tough-cookie";
+import {Cookie} from "tough-cookie";
 import type iCloudService from "..";
-import { AUTH_HEADERS, DEFAULT_HEADERS } from "../consts";
-import { LogLevel } from "../index.js";
+import {AUTH_HEADERS, DEFAULT_HEADERS} from "../consts";
+import {LogLevel} from "../index.js";
 
 export class iCloudAuthenticationStore {
     /**
@@ -29,14 +29,14 @@ export class iCloudAuthenticationStore {
 
     constructor(service: iCloudService) {
         this.options = service.options;
-        this.tknFile = path.format({ dir: this.options.dataDirectory, base: ".trust-token" });
-
-        Object.defineProperty(this, "trustToken", { enumerable: false });
-        Object.defineProperty(this, "sessionId", { enumerable: false });
-        Object.defineProperty(this, "sessionToken", { enumerable: false });
-        Object.defineProperty(this, "scnt", { enumerable: false });
-        Object.defineProperty(this, "aasp", { enumerable: false });
-        Object.defineProperty(this, "icloudCookies", { enumerable: false });
+        this.tknFile = path.format({dir: this.options.dataDirectory, base: ".trust-token"});
+        this.log = service.log;
+        Object.defineProperty(this, "trustToken", {enumerable: false});
+        Object.defineProperty(this, "sessionId", {enumerable: false});
+        Object.defineProperty(this, "sessionToken", {enumerable: false});
+        Object.defineProperty(this, "scnt", {enumerable: false});
+        Object.defineProperty(this, "aasp", {enumerable: false});
+        Object.defineProperty(this, "icloudCookies", {enumerable: false});
     }
 
     /**
@@ -50,6 +50,7 @@ export class iCloudAuthenticationStore {
             this.log(LogLevel.Error, "Unable to load trust token:", e.toString());
         }
     }
+
     /**
      * Writes a trust token to disk
      * @param account The account to write the trust token for
@@ -79,12 +80,39 @@ export class iCloudAuthenticationStore {
             const headers = Array.from(authResponse.headers.values());
             const aaspCookie = headers.find((v) => v.includes("aasp="));
             this.aasp = aaspCookie.split("aasp=")[1].split(";")[0];
+
+            // Save variables to file
+            const authData = {
+                username: this.options.username,
+                password: this.options.password,
+                sessionId: this.sessionId,
+                sessionToken: this.sessionToken,
+                scnt: this.scnt,
+                aasp: this.aasp
+            };
+            console.log(authData)
+            fs.writeFileSync(path.join(this.options.dataDirectory, 'authData.json'), JSON.stringify(authData));
             return this.validateAuthSecrets();
         } catch (e) {
             this.log(LogLevel.Warning, "Unable to process auth secrets:", e.toString());
             return false;
         }
     }
+
+    /**
+     * Processes a successful iCloud sign in response.
+     * Sets this authenticationStore's sessionId, sessionToken, scnt, and aasp properties.
+     * @param authResponse The response from the sign in request
+     * @returns {boolean} True if the secrets are all present, false otherwise.
+     */
+    loadAuthSecrets(authData: any) {
+        this.sessionId = authData.sessionId;
+        this.sessionToken = authData.sessionToken;
+        this.scnt = authData.scnt;
+        this.aasp = authData.aasp;
+        return this.validateAuthSecrets();
+    }
+
     /**
      * Parses cookies from a response and adds them to the authenticationStore's icloudCookies property.
      * @param cloudSetupResponse The response from the iCloud setup request
@@ -99,6 +127,7 @@ export class iCloudAuthenticationStore {
             .filter((v) => !!v);
         return !!this.icloudCookies.length;
     }
+
     /**
      * Sets this authenticationStore's trustToken and sessionToken properties.
      * Also writes the trust token to disk.
@@ -106,12 +135,13 @@ export class iCloudAuthenticationStore {
      * @param trustResponse Response to the 2sv/trust request.
      * @returns
      */
-    processAccountTokens(account:string, trustResponse: Response) {
+    processAccountTokens(account: string, trustResponse: Response) {
         this.sessionToken = trustResponse.headers.get("x-apple-session-token");
         this.trustToken = trustResponse.headers.get("x-apple-twosv-trust-token");
         this.writeTrustToken(account);
         return this.validateAccountTokens();
     }
+
     /**
      * Parses a list of cookies and adds them to the authenticationStore's icloudCookies property.
      * @param cookies A list of cookies to add in the format of a Set-Cookie header.
@@ -122,17 +152,22 @@ export class iCloudAuthenticationStore {
 
     // Gets the headers required for a MFA request
     getMfaHeaders() {
-        return { ...AUTH_HEADERS, scnt: this.scnt, "X-Apple-ID-Session-Id": this.sessionId, Cookie: "aasp=" + this.aasp };
+        return {...AUTH_HEADERS, scnt: this.scnt, "X-Apple-ID-Session-Id": this.sessionId, Cookie: "aasp=" + this.aasp};
     }
+
     // Gets the authentication headers required for a request.
     getHeaders() {
-        return { ...DEFAULT_HEADERS, Cookie: this.icloudCookies.filter((a) => a.value).map((cookie) => cookie.cookieString()).join("; ") };
+        return {
+            ...DEFAULT_HEADERS,
+            Cookie: this.icloudCookies.filter((a) => a.value).map((cookie) => cookie.cookieString()).join("; ")
+        };
     }
 
     // Returns true if sessionToken and trustToken are present.
     validateAccountTokens() {
         return this.sessionToken && this.trustToken;
     }
+
     // Returns true if aasp, scnt and sessionId are present.
     validateAuthSecrets() {
         return this.aasp && this.scnt && this.sessionId;
